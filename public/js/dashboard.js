@@ -403,6 +403,8 @@ function updateUI() {
         ? `Turn OFF Channel ${index + 1}`
         : `Turn ON Channel ${index + 1}`;
       btn.className = on ? "toggle-btn on" : "toggle-btn off";
+      btn.style.backgroundColor = on ? "#d1a402ff" : "#00923f";
+      
       console.log(`Channel ${index + 1} is ${on ? "ON" : "OFF"}`);
     }
   });
