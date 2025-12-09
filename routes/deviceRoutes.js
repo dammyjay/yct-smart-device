@@ -1,0 +1,438 @@
+const express = require("express");
+const router = express.Router();
+const deviceController = require("../controllers/deviceController");
+const getDeviceChannelStates = require("../utils/getDeviceChannelStates");
+const sendToESP = require("../utils/sendToESP"); // if using real ESP
+const { pool } = require("../utils/db"); // or wherever your db.js is
+// const broadcast = require("../utils/broadcast");
+const { broadcast } = require("../utils/websocket");
+
+// router.get("/status", deviceController.getStatus);
+// router.post("/toggle", deviceController.toggleDevice);
+
+// router.post("/toggle", async (req, res) => {
+//   const userId = req.session.user?.id;
+//   const { channelIndex } = req.body;
+
+//   try {
+//     // Get device_id for this user
+//     const userResult = await pool.query(
+//       "SELECT device_id FROM users WHERE id = $1",
+//       [userId]
+//     );
+//     const device_id = userResult.rows[0]?.device_id;
+//     if (!device_id) return res.status(400).send("No device assigned");
+
+//     // Get current status
+//     const statusResult = await pool.query(
+//       `SELECT status FROM channel_status WHERE device_id = $1 AND channel_index = $2`,
+//       [device_id, channelIndex]
+//     );
+
+//     const currentStatus = statusResult.rows[0]?.status ?? false;
+//     const newStatus = !currentStatus;
+
+//     // Insert or update device_status
+//     await pool.query(
+//       `INSERT INTO channel_status (device_id, channel_index, status)
+//        VALUES ($1, $2, $3)
+//        ON CONFLICT (device_id, channel_index)
+//        DO UPDATE SET status = $3, updated_at = CURRENT_TIMESTAMP`,
+//       [device_id, channelIndex, newStatus]
+//     );
+
+//     // Insert notification
+//     await pool.query(
+//       `INSERT INTO notifications (user_id, type, message)
+//        VALUES ($1, $2, $3)`,
+//       [
+//         userId,
+//         "toggle",
+//         `Channel ${channelIndex + 1} turned ${newStatus ? "ON" : "OFF"}`,
+//       ]
+//     );
+
+//     // Broadcast updated state to WebSocket clients
+//     // broadcast({ channels: await getDeviceChannelStates(device_id) });
+//     const updatedStates = await getDeviceChannelStates(device_id);
+//     broadcast({ channels: updatedStates });
+//     await sendToESP(device_id, channelIndex, newStatus); // only if using ESP
+
+//     // Send to ESP here if needed
+//     // sendToESP(device_id, channelIndex, newStatus);
+
+//     res.json({ status: newStatus });
+//   } catch (err) {
+//     console.error("Toggle error:", err.message);
+//     res.status(500).send("Error toggling device.");
+//   }
+// });
+// router.post("/toggle", async (req, res) => {
+//   const userId = req.session.user?.id;
+//   const { channelIndex } = req.body;
+
+//   try {
+//     // 1. Get device_id for this user
+//     const userResult = await pool.query(
+//       "SELECT device_id FROM users WHERE id = $1",
+//       [userId]
+//     );
+//     const device_id = userResult.rows[0]?.device_id;
+//     if (!device_id) return res.status(400).send("No device assigned");
+
+//     // 2. Get current channel status
+//     const statusResult = await pool.query(
+//       `SELECT status FROM channel_status
+//        WHERE device_id = $1 AND channel_index = $2`,
+//       [device_id, channelIndex]
+//     );
+
+//     const currentStatus = statusResult.rows[0]?.status ?? false;
+//     const newStatus = !currentStatus;
+
+//     // 3. Update channel status
+//     await pool.query(
+//       `INSERT INTO channel_status (device_id, channel_index, status)
+//        VALUES ($1, $2, $3)
+//        ON CONFLICT (device_id, channel_index)
+//        DO UPDATE SET status = $3, updated_at = CURRENT_TIMESTAMP`,
+//       [device_id, channelIndex, newStatus]
+//     );
+
+//     // 4. Log a notification for the user
+//     await pool.query(
+//       `INSERT INTO notifications (user_id, type, message)
+//        VALUES ($1, $2, $3)`,
+//       [
+//         userId,
+//         "toggle",
+//         `Channel ${channelIndex + 1} turned ${newStatus ? "ON" : "OFF"}`,
+//       ]
+//     );
+
+//     // 5. Broadcast to any connected dashboard clients (optional WebSocket)
+//     const updatedStates = await getDeviceChannelStates(device_id);
+//     broadcast({ channels: updatedStates });
+
+//     // ✅ Done — ESP will pull updated status on its next `/devices/status` request
+//     res.json({ status: newStatus });
+//   } catch (err) {
+//     console.error("❌ Toggle error:", err.message);
+//     res.status(500).send("Error toggling device.");
+//   }
+// });
+
+// routes/deviceRoutes.js (replace your existing /toggle route with this)
+
+
+
+router.post("/toggle", async (req, res) => {
+  const userId = req.session.user?.id;
+  const { channelIndex } = req.body;
+
+  try {
+    // 1. Get device_id (stored as the ESP IP in your DB)
+    const userResult = await pool.query(
+      "SELECT device_id FROM users WHERE id = $1",
+      [userId]
+    );
+    const device_id = userResult.rows[0]?.device_id;
+    if (!device_id) return res.status(400).send("No device assigned");
+
+    // 2. Get current channel status
+    const statusResult = await pool.query(
+      `SELECT status FROM channel_status
+       WHERE device_id = $1 AND channel_index = $2`,
+      [device_id, channelIndex]
+    );
+
+    const currentStatus = statusResult.rows[0]?.status ?? false;
+    const newStatus = !currentStatus;
+
+    // 3. Update channel status in DB
+    await pool.query(
+      `INSERT INTO channel_status (device_id, channel_index, status)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (device_id, channel_index)
+       DO UPDATE SET status = $3, updated_at = CURRENT_TIMESTAMP`,
+      [device_id, channelIndex, newStatus]
+    );
+
+    // 4. Log notification
+    await pool.query(
+      `INSERT INTO notifications (user_id, type, message)
+       VALUES ($1, $2, $3)`,
+      [
+        userId,
+        "toggle",
+        `Channel ${channelIndex + 1} turned ${newStatus ? "ON" : "OFF"}`,
+      ]
+    );
+
+    // 5. Broadcast to any connected dashboard clients
+    const updatedStates = await getDeviceChannelStates(device_id);
+    broadcast({ channels: updatedStates });
+
+    // 6. Forward the command to ESP device (best-effort)
+    // device_id is expected to be the ESP IP (e.g., "192.168.0.42")
+    (async () => {
+      try {
+        const espIp = device_id;
+        const stateStr = newStatus ? "on" : "off";
+        const espUrl = `http://${espIp}/toggle?channel=${channelIndex}&state=${stateStr}`;
+
+        // Use fetch with a short timeout
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 3000); // 3s
+        const resp = await fetch(espUrl, { signal: controller.signal });
+        clearTimeout(timeout);
+
+        if (resp.ok) {
+          const text = await resp.text().catch(() => "");
+          console.log(`➡️ Forwarded toggle to ESP ${espIp}: ${text}`);
+        } else {
+          console.warn(`⚠️ ESP responded ${resp.status} for ${espUrl}`);
+        }
+      } catch (err) {
+        console.warn("⚠️ Failed to forward toggle to ESP:", err.message || err);
+      }
+    })();
+
+    // ✓ OK — return the new status to the dashboard
+    res.json({ status: newStatus });
+  } catch (err) {
+    console.error("❌ Toggle error:", err.message);
+    res.status(500).send("Error toggling device.");
+  }
+});
+
+// router.post("/heartbeat", async (req, res) => {
+//   const { device_id, people_count } = req.body;
+//   if (!device_id) return res.status(400).send("Missing device_id");
+
+//   try {
+//     await pool.query(
+//       `INSERT INTO devices (device_id, online, last_seen, people_count)
+//        VALUES ($1, TRUE, CURRENT_TIMESTAMP, $2)
+//        ON CONFLICT (device_id)
+//        DO UPDATE SET online=TRUE, last_seen=CURRENT_TIMESTAMP, people_count=$2`,
+//       [device_id, people_count ?? 0]
+//     );
+
+//     console.log(
+//       `✅ Heartbeat from ${device_id} (count=${people_count ?? "?"})`
+//     );
+//     res.send("✅ Heartbeat received");
+//   } catch (err) {
+//     console.error("❌ Heartbeat error:", err.message);
+//     res.status(500).send("Server error");
+//   }
+// });
+
+// ✅ Receive people count updates from ESP devices
+
+router.post("/heartbeat", async (req, res) => {
+  const { device_id, people_count } = req.body;
+  if (!device_id) return res.status(400).send("Missing device_id");
+
+  try {
+    await pool.query(
+      `INSERT INTO devices (device_id, online, last_seen, people_count)
+       VALUES ($1, TRUE, CURRENT_TIMESTAMP, $2)
+       ON CONFLICT (device_id)
+       DO UPDATE SET online=TRUE, last_seen=CURRENT_TIMESTAMP, people_count=$2`,
+      [device_id, people_count ?? 0]
+    );
+
+    console.log(
+      `✅ Heartbeat from ${device_id} (count=${people_count ?? "?"})`
+    );
+
+    // 🆕 Send live update to connected dashboards
+    broadcast({ type: "people_count", device_id, count: people_count ?? 0 });
+
+    res.send("✅ Heartbeat received");
+  } catch (err) {
+    console.error("❌ Heartbeat error:", err.message);
+    res.status(500).send("Server error");
+  }
+});
+
+
+router.post("/people_count", async (req, res) => {
+  const { device_id, count } = req.body;
+
+  if (!device_id) {
+    return res.status(400).json({ error: "Missing device_id" });
+  }
+
+  try {
+    // 1️⃣ Update device record (people_count + last_seen)
+    await pool.query(
+      `INSERT INTO devices (device_id, people_count, online, last_seen)
+       VALUES ($1, $2, TRUE, CURRENT_TIMESTAMP)
+       ON CONFLICT (device_id)
+       DO UPDATE SET people_count = $2, online = TRUE, last_seen = CURRENT_TIMESTAMP`,
+      [device_id, count ?? 0]
+    );
+
+    console.log(`👥 People count update from ${device_id}: ${count}`);
+
+    // 2️⃣ Broadcast live update via WebSocket
+    broadcast({ type: "people_count", device_id, count });
+
+    // 3️⃣ Respond to ESP
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Error handling /people_count:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+
+router.get("/status", async (req, res) => {
+  const device_id = req.query.device_id;
+  if (!device_id) return res.status(400).send("Missing device_id");
+
+  try {
+    // Get all 4 channels, default to false if missing
+    const result = await pool.query(
+      `SELECT channel_index, status
+       FROM channel_status
+       WHERE device_id = $1
+       ORDER BY channel_index ASC`,
+      [device_id]
+    );
+
+    let channels = { 0: false, 1: false, 2: false, 3: false };
+    result.rows.forEach((row) => {
+      channels[row.channel_index] = row.status;
+    });
+
+    res.json(channels);
+  } catch (err) {
+    console.error("❌ Get status error:", err.message);
+    res.status(500).send("Server error");
+  }
+});
+
+router.get("/status", async (req, res) => {
+  const device_id = req.query.device_id;
+  if (!device_id) return res.status(400).send("Missing device_id");
+
+  try {
+    // Get all 4 channels, default to false if missing
+    const result = await pool.query(
+      `SELECT channel_index, status
+       FROM channel_status
+       WHERE device_id = $1
+       ORDER BY channel_index ASC`,
+      [device_id]
+    );
+
+    // Initialize array of 4 channels, all OFF
+    let channels = [false, false, false, false];
+    result.rows.forEach((row) => {
+      channels[row.channel_index] = row.status;
+    });
+
+    res.json({ channels }); // <-- cleaner array format
+  } catch (err) {
+    console.error("❌ Get status error:", err.message);
+    res.status(500).send("Server error");
+  }
+});
+
+
+// router.get("/my-status", async (req, res) => {
+//   try {
+//     const userId = req.session.user?.id;
+//     if (!userId) return res.status(401).send("Unauthorized");
+
+//     const result = await pool.query(
+//       `SELECT device_id FROM users WHERE id = $1`,
+//       [userId]
+//     );
+
+//     const device_id = result.rows[0]?.device_id;
+//     if (!device_id) return res.status(404).send("No device linked");
+
+//     // Fetch channel states
+//     const statusRows = await pool.query(
+//       `SELECT channel_index, status FROM channel_status
+//        WHERE device_id = $1
+//        ORDER BY channel_index`,
+//       [device_id]
+//     );
+
+//     res.json({ device_id, channels: statusRows.rows });
+//   } catch (err) {
+//     console.error("❌ Error fetching device status:", err.message);
+//     res.status(500).send("Server error fetching status");
+//   }
+// });
+
+// ✅ Get current user's device status and channel states
+
+router.get("/my-status", async (req, res) => {
+  try {
+    const userId = req.session.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    // 1️⃣ Get device linked to this user
+    // const deviceResult = await pool.query(
+    //   `SELECT device_id, online, last_seen
+    //    FROM devices WHERE user_id = $1 LIMIT 1`,
+    //   [userId]
+    // );
+
+    // const deviceResult = await pool.query(
+    //   `SELECT device_id FROM users WHERE id = $1`,
+    //   [userId]
+    // );
+
+    const deviceResult = await pool.query(
+      `SELECT u.device_id, d.online, d.last_seen
+   FROM users u
+   LEFT JOIN devices d ON u.device_id = d.device_id
+   WHERE u.id = $1`,
+      [userId]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      return res.json({ device_id: null, online: false, channels: [] });
+    }
+
+    const device = deviceResult.rows[0];
+
+    // 2️⃣ Get all channel states for this device
+    const channelsResult = await pool.query(
+      `SELECT channel_index, status 
+       FROM channel_status 
+       WHERE device_id = $1
+       ORDER BY channel_index ASC`,
+      [device.device_id]
+    );
+
+    // Ensure array of booleans
+    const channels = channelsResult.rows.map((row) => ({
+      index: row.channel_index,
+      status: row.status,
+    }));
+
+    // 3️⃣ Send full JSON response
+    res.json({
+      device_id: device.device_id,
+      online: device.online,
+      last_seen: device.last_seen,
+      channels,
+    });
+  } catch (err) {
+    console.error("❌ Error in /devices/my-status:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+module.exports = router;
