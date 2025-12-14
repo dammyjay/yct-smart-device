@@ -175,6 +175,30 @@ app.use(
   })
 );
 
+app.post("/update-camera-url", async (req, res) => {
+  try {
+    const { device_id, camera_url } = req.body;
+
+    if (!device_id || !camera_url) {
+      return res.status(400).json({ error: "Missing parameters" });
+    }
+
+    const result = await pool.query(
+      "UPDATE users SET camera_url=$1 WHERE device_id=$2 RETURNING *",
+      [camera_url, device_id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Device not found" });
+    }
+
+    res.json({ success: true, camera_url });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

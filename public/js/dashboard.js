@@ -39,71 +39,6 @@ socket.addEventListener("message", (event) => {
 });
 
 
-// socket.onmessage = (event) => {
-//   try {
-//     const data = JSON.parse(event.data);
-//     if (data.channels) {
-//       console.log("📡 WebSocket update received:", data.channels);
-//       deviceStates = data.channels;
-//       updateUI();
-//     }
-//   } catch (err) {
-//     console.error("❌ Error parsing WebSocket data:", err);
-//   }
-// };
-
-// socket.onmessage = (event) => {
-//   try {
-//     const data = JSON.parse(event.data);
-//     if (!data.channels) return;
-
-//     // Accept array [true,false,...] OR object {"0":true,"1":false,...}
-//     if (Array.isArray(data.channels)) {
-//       deviceStates = data.channels;
-//     } else {
-//       deviceStates = [0, 1, 2, 3].map((i) => !!data.channels[i]);
-//     }
-//     updateUI();
-//   } catch (err) {
-//     console.error("❌ Error parsing WebSocket data:", err);
-//   }
-// };
-
-// =============================
-// Load devices list
-// =============================
-// async function loadInitialDeviceState() {
-//   try {
-//     const res = await fetch("/devices/my-devices");
-//     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-//     const devices = await res.json();
-
-//     deviceSelector.innerHTML = "";
-//     devices.forEach((dev) => {
-//       const option = document.createElement("option");
-//       option.value = dev.device_id;
-//       option.textContent = dev.name || dev.device_id;
-//       if (dev.is_default) option.selected = true;
-//       deviceSelector.appendChild(option);
-//     });
-
-//     if (devices.length > 0) {
-//       deviceId = deviceSelector.value;
-//       fetchDeviceStatus(deviceId);
-//     } else {
-//       document.getElementById("device-status").textContent =
-//         "⚠️ No devices registered";
-//     }
-//   } catch (err) {
-//     console.error("❌ Failed to load devices:", err);
-//   }
-// }
-
-// deviceSelector.addEventListener("change", (e) => {
-//   deviceId = e.target.value;
-//   fetchDeviceStatus(deviceId);
-// });
-
 socket.onmessage = (event) => {
   try {
     const data = JSON.parse(event.data);
@@ -156,22 +91,6 @@ async function loadInitialDeviceState() {
   }
 }
 
-// async function loadInitialDeviceState() {
-//   try {
-//     const res = await fetch("/devices/my-status");
-//     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-//     const data = await res.json();
-
-//     console.log("📡 Initial device status:", data);
-
-//     if (data.channels && data.channels.length > 0) {
-//       deviceStates = data.channels.map((c) => c.status);
-//       updateUI();
-//     }
-//   } catch (err) {
-//     console.error("❌ Failed to load initial device state:", err);
-//   }
-// }
 
 // Fetch notifications and update UI
 
@@ -192,15 +111,6 @@ async function fetchNotifications() {
   document.getElementById("notif-count").textContent = data.length;
 }
 
-// function toggleNotifications() {
-//   const dropdown = document.getElementById("notif-dropdown");
-//   dropdown.style.display = dropdown.style.display === "block" ? "none" : "block";
-// }
-
-// function toggleProfileMenu() {
-//   const menu = document.getElementById("profileMenu");
-//   menu.style.display = menu.style.display === "flex" ? "none" : "flex";
-// }
 
 document.addEventListener("DOMContentLoaded", () => {
   document
@@ -208,27 +118,7 @@ document.addEventListener("DOMContentLoaded", () => {
     .addEventListener("click", toggleMobileMenu);
 });
 
-// function toggleMobileMenu() {
-//   const sidebar = document.getElementById("mobile-sidebar");
-//   sidebar.classList.toggle("open");
 
-//   // Add listener to detect outside clicks
-//   if (sidebar.classList.contains("open")) {
-//     document.addEventListener("click", handleOutsideClick);
-//   } else {
-//     document.removeEventListener("click", handleOutsideClick);
-//   }
-// }
-
-// function handleOutsideClick(event) {
-//   const sidebar = document.getElementById("mobile-sidebar");
-//   const hamburger = document.querySelector(".hamburger");
-
-//   if (!sidebar.contains(event.target) && !hamburger.contains(event.target)) {
-//     sidebar.classList.remove("open");
-//     document.removeEventListener("click", handleOutsideClick);
-//   }
-// }
 
 function openEditProfile() {
   fetch("/profile")
@@ -340,14 +230,6 @@ async function fetchDeviceStatus() {
   }
 }
 
-// function setManualCameraUrl() {
-//   const url = document.getElementById("manual-camera-url").value.trim();
-//   if (!url) return alert("Please enter a URL");
-
-//   document.getElementById("live-stream").src = url;
-//   document.getElementById("camera-status").textContent = "📹 Using manual URL";
-//   document.getElementById("camera-status").style.color = "blue";
-// }
 
 function setManualCameraUrl() {
   const url = document.getElementById("manual-camera-url").value.trim();
@@ -534,37 +416,6 @@ function attachSidebarLinkEvents() {
   });
 }
 
-// async function checkCameraStream(url) {
-//   try {
-//     const res = await fetch(url, { method: "HEAD" });
-
-//     if (res.ok) {
-//       document.getElementById("live-stream").src = url;
-//       document.getElementById("camera-status").textContent = "📹 Camera online";
-//       document.getElementById("camera-status").style.color = "green";
-//     } else {
-//       throw new Error("Stream not OK");
-//     }
-//   } catch (err) {
-//     document.getElementById("live-stream").src = "";
-//     document.getElementById("camera-status").textContent = "❌ Camera offline";
-//     document.getElementById("camera-status").style.color = "red";
-//   }
-// }
-
-// document.addEventListener("DOMContentLoaded", () => {
-//   // Use your Pi's actual streaming URL here
-//   const cameraUrl = "http://<YOUR-PI-IP-OR-URL>:8081/?action=stream";
-
-//   // First check immediately
-//   checkCameraStream(cameraUrl);
-
-//   // Then check every 10 seconds
-//   setInterval(() => {
-//     checkCameraStream(cameraUrl);
-//   }, 10000);
-// });
-
 async function checkCameraStream(url) {
   const cameraStatusEl = document.getElementById("camera-status");
   const liveStreamEl = document.getElementById("live-stream");
@@ -597,27 +448,6 @@ async function checkCameraStream(url) {
     liveStreamEl.src = "";
   }
 }
-
-// function initCameraCheck() {
-//   fetch("/camera-url")
-//     .then((res) => res.json())
-//     .then((data) => {
-//       if (!data.url) {
-//         throw new Error("No camera URL provided by server");
-//       }
-//       const cameraUrl = data.url;
-//       checkCameraStream(cameraUrl);
-//       setInterval(() => {
-//         checkCameraStream(cameraUrl);
-//       }, 10000); // every 10 seconds
-//     })
-//     .catch((err) => {
-//       console.error("❌ Failed to get camera URL:", err);
-//       const cameraStatusEl = document.getElementById("camera-status");
-//       cameraStatusEl.textContent = "⚠️ Error getting camera URL";
-//       cameraStatusEl.style.color = "red";
-//     });
-// }
 
 function initCameraCheck() {
   fetch("/camera-url")
@@ -672,6 +502,26 @@ function initCameraCheck() {
       document.getElementById("camera-status").style.color = "orange";
     });
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+  fetch("/profile")
+    .then((r) => r.json())
+    .then((user) => {
+      if (user.camera_url) {
+        document.getElementById("live-stream").src = user.camera_url;
+        document.getElementById("camera-status").innerText =
+          "Camera Connected ✔️";
+      } else {
+        document.getElementById("camera-status").innerText =
+          "Camera URL not set ❌";
+      }
+    })
+    .catch(() => {
+      document.getElementById("camera-status").innerText =
+        "Camera load error ❌";
+    });
+});
+
 
 // document.addEventListener("DOMContentLoaded", initCameraCheck);
 

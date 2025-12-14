@@ -17,6 +17,19 @@ async function createTables() {
       );
     `);
 
+    // await pool.query(`
+    //   CREATE TABLE IF NOT EXISTS users (
+    //       id SERIAL PRIMARY KEY,
+    //       full_name TEXT NOT NULL,
+    //       email TEXT UNIQUE NOT NULL,
+    //       password TEXT NOT NULL,
+    //       profile_picture TEXT,
+    //       device_id TEXT UNIQUE,
+    //       role TEXT DEFAULT 'user',
+    //       created_at TIMESTAMP DEFAULT NOW()
+    //   );
+    // `);
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
           id SERIAL PRIMARY KEY,
@@ -25,6 +38,7 @@ async function createTables() {
           password TEXT NOT NULL,
           profile_picture TEXT,
           device_id TEXT UNIQUE,
+          camera_url TEXT,
           role TEXT DEFAULT 'user',
           created_at TIMESTAMP DEFAULT NOW()
       );
